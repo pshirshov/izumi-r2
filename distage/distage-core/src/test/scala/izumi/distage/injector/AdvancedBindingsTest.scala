@@ -1,13 +1,13 @@
 package izumi.distage.injector
 
+import distage.{ModuleDef, PlannerInput}
 import izumi.distage.fixtures.BasicCases.BasicCase1
 import izumi.distage.fixtures.SetCases.SetCase2
-import izumi.distage.model.PlannerInput
 import izumi.distage.model.exceptions.TODOBindingException
-import distage.ModuleDef
 import org.scalatest.wordspec.AnyWordSpec
 
 import scala.util.Try
+
 
 class AdvancedBindingsTest extends AnyWordSpec with MkInjector {
 
@@ -55,3 +55,6 @@ class AdvancedBindingsTest extends AnyWordSpec with MkInjector {
   }
 
 }
+
+
+

@@ -10,7 +10,7 @@ object InjectorPerf {
       Injector()
       val t2 = System.nanoTime()
       if (x % 100 == 0) {
-        println(s"[IPT]  ${(t2 - t1) / 1000.0 / 1000.0}")
+        println(s"[IPT]  ${(t2 - t1) / 1000.0 / 1000.0} msec/injector")
       }
     }
     println("[IPT] finished!")
