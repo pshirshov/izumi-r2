@@ -35,13 +35,14 @@ object BIO2InstancesModule {
     * `make[Temporal2[F]]`, `make[UnsafeRun2[F]]` `make[Fork2[F]]` and `make[Primitives2[F]]` are not required by [[BIO2InstancesModule]]
     * but are added for completeness
     */
-  def withImplicits[F[+_, +_]: TagKK: Async2: Temporal2: UnsafeRun2: Fork2: Primitives2]: ModuleDef = new ModuleDef {
+  def withImplicits[F[+_, +_]: TagKK: Async2: Temporal2: UnsafeRun2: Fork2: Primitives2: PrimitivesM2]: ModuleDef = new ModuleDef {
     include(BIO2InstancesModule[F])
 
     addImplicit[Async2[F]]
     addImplicit[Fork2[F]]
     addImplicit[Temporal2[F]]
     addImplicit[Primitives2[F]]
+    addImplicit[PrimitivesM2[F]]
     addImplicit[UnsafeRun2[F]]
   }
 }

@@ -3,7 +3,7 @@ package izumi.distage.modules.support
 import izumi.distage.model.definition.ModuleDef
 import izumi.distage.model.effect._
 import izumi.distage.modules.typeclass.BIO2InstancesModule
-import izumi.functional.bio.{Applicative2, Async2, Clock2, Entropy2, Fork2, IO2, Primitives2, SyncSafe2, Temporal2, UnsafeRun2}
+import izumi.functional.bio.{Applicative2, Async2, Clock2, Entropy2, Fork2, IO2, Primitives2, PrimitivesM2, SyncSafe2, Temporal2, UnsafeRun2}
 import izumi.functional.mono.{Clock, Entropy, SyncSafe}
 import izumi.fundamentals.platform.functional.Identity
 import izumi.reflect.TagKK
@@ -54,13 +54,14 @@ object AnyBIO2SupportModule extends ModuleDef {
     * `make[Fork2[F]]` and `make[Primitives2[F]]` are not required by [[AnyBIO2SupportModule]]
     * but are added for completeness
     */
-  def withImplicits[F[+_, +_]: TagKK: Async2: Temporal2: UnsafeRun2: Fork2: Primitives2]: ModuleDef = new ModuleDef {
+  def withImplicits[F[+_, +_]: TagKK: Async2: Temporal2: UnsafeRun2: Fork2: Primitives2: PrimitivesM2]: ModuleDef = new ModuleDef {
     include(AnyBIO2SupportModule[F])
 
     addImplicit[Async2[F]]
     addImplicit[Fork2[F]]
     addImplicit[Temporal2[F]]
     addImplicit[Primitives2[F]]
+    addImplicit[PrimitivesM2[F]]
     addImplicit[UnsafeRun2[F]]
   }
 }

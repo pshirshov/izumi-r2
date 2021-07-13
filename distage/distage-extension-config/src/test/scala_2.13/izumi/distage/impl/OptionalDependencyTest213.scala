@@ -1,7 +1,7 @@
 package izumi.distage.impl
 
 import izumi.functional.bio.impl.BioEither
-import izumi.functional.bio.{Applicative2, ApplicativeError2, Arrow3, ArrowChoice3, Ask3, Async2, Bifunctor2, Bracket2, Concurrent2, Error2, Fork2, Functor2, Guarantee2, IO2, IO3, Local3, Monad2, MonadAsk3, Panic2, Parallel2, Primitives2, Profunctor3, Temporal2}
+import izumi.functional.bio.{Applicative2, ApplicativeError2, Arrow3, ArrowChoice3, Ask3, Async2, Bifunctor2, Bracket2, Concurrent2, Error2, Fork2, Functor2, Guarantee2, IO2, IO3, Local3, Monad2, MonadAsk3, Panic2, Parallel2, Primitives2, PrimitivesM2, Profunctor3, Temporal2}
 import org.scalatest.wordspec.AnyWordSpec
 
 class OptionalDependencyTest213 extends AnyWordSpec {
@@ -36,6 +36,7 @@ class OptionalDependencyTest213 extends AnyWordSpec {
 
     assert(new optSearch2[Fork2].find == null)
     assert(new optSearch2[Primitives2].find == null)
+    assert(new optSearch2[PrimitivesM2].find == null)
 //    assert(new optSearch2[BlockingIO].find == null)  // hard to make searching this not require zio currently (`type ZIOWithBlocking` creates issue)
   }
 

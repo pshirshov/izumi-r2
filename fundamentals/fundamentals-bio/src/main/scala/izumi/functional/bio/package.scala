@@ -149,6 +149,11 @@ package object bio extends Syntax3 with Syntax2 {
     @inline def apply[F[-_, +_, +_]: Primitives3]: Primitives3[F] = implicitly
   }
 
+  type PrimitivesM3[F[-_, +_, +_]] = PrimitivesM2[F[Any, +_, +_]]
+  object PrimitivesM3 {
+    @inline def apply[F[-_, +_, +_]: PrimitivesM3]: PrimitivesM3[F] = implicitly
+  }
+
   type BlockingIO2[F[+_, +_]] = BlockingIO3[Lambda[(`-R`, `+E`, `+A`) => F[E, A]]]
   object BlockingIO2 {
     @inline def apply[F[+_, +_]: BlockingIO2]: BlockingIO2[F] = implicitly
@@ -161,6 +166,12 @@ package object bio extends Syntax3 with Syntax2 {
 
   type Fiber3[+F[-_, +_, +_], +E, +A] = Fiber2[F[Any, +_, +_], E, A]
   lazy val Fiber3: Fiber2.type = Fiber2
+
+  type RefM3[F[_, +_, +_], A] = RefM2[F[Any, +_, +_], A]
+  lazy val RefM3: RefM2.type = RefM2
+
+  type Mutex3[F[_, +_, +_], A] = Mutex2[F[Any, +_, +_]]
+  lazy val Mutex3: Mutex2.type = Mutex2
 
   type Ref2[+F[_, _], A] = Ref1[F[Nothing, _], A]
   lazy val Ref2: Ref1.type = Ref1
