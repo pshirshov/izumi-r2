@@ -3,6 +3,7 @@ package izumi.distage.model.definition
 import izumi.distage.constructors.AnyConstructor
 import izumi.distage.model.definition.Binding.{EmptySetBinding, SetElementBinding, SingletonBinding}
 import izumi.distage.model.providers.Functoid
+import izumi.distage.model.reflection.DIKey.SetKeyMeta
 import izumi.distage.model.reflection.{DIKey, SafeType}
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.reflect.Tag
@@ -37,14 +38,14 @@ object Bindings {
     val setkey = DIKey.get[Set[T]]
     val implKey = DIKey.get[I]
     val implDef = ImplDef.InstanceImpl(SafeType.get[I], instance)
-    SetElementBinding(DIKey.SetElementKey(setkey, implKey, Some(implDef)), implDef, Set.empty, pos.get.position)
+    SetElementBinding(DIKey.SetElementKey(setkey, implKey, SetKeyMeta.WithImpl(implDef)), implDef, Set.empty, pos.get.position)
   }
 
   def setElementProvider[T: Tag](function: Functoid[T])(implicit pos: CodePositionMaterializer): SetElementBinding = {
     val setkey = DIKey.get[Set[T]]
     val implKey = DIKey.TypeKey(function.get.ret)
     val implDef = ImplDef.ProviderImpl(function.get.ret, function.get)
-    SetElementBinding(DIKey.SetElementKey(setkey, implKey, Some(implDef)), implDef, Set.empty, pos.get.position)
+    SetElementBinding(DIKey.SetElementKey(setkey, implKey, SetKeyMeta.WithImpl(implDef)), implDef, Set.empty, pos.get.position)
   }
 
   def todo[K <: DIKey](key: K)(implicit pos: CodePositionMaterializer): SingletonBinding[K] = {

@@ -2,11 +2,11 @@ package izumi.distage.plugins.load
 
 import io.github.classgraph.ClassGraph
 import izumi.distage.plugins.{PluginBase, PluginConfig, PluginDef}
-import izumi.functional.Value
 import izumi.fundamentals.platform.cache.SyncCache
 import izumi.fundamentals.reflection.TypeUtil
 
 import scala.jdk.CollectionConverters._
+import scala.util.chaining.scalaUtilChainingOps
 
 class PluginLoaderDefaultImpl extends PluginLoader {
   /** Will disable scanning if no packages are specified (add `"_root_"` package if you want to scan everything) */
@@ -52,14 +52,13 @@ object PluginLoaderDefaultImpl {
   private lazy val cache = new SyncCache[String, Seq[PluginBase]]()
 
   def doLoad[T](base: String, whitelistClasses: Seq[String], enabledPackages: Seq[String], disabledPackages: Seq[String], debug: Boolean): Seq[T] = {
-    val scanResult = Value(new ClassGraph())
-      .map(_.acceptPackages(enabledPackages: _*))
-      .map(_.acceptClasses(whitelistClasses :+ base: _*))
-      .map(_.rejectPackages(disabledPackages: _*))
-      .map(_.enableExternalClasses())
-      .map(if (debug) _.verbose() else identity)
-      .map(_.scan())
-      .get
+    val scanResult = new ClassGraph()
+      .acceptPackages(enabledPackages: _*)
+      .acceptClasses(whitelistClasses :+ base: _*)
+      .rejectPackages(disabledPackages: _*)
+      .enableExternalClasses()
+      .pipe(if (debug) _.verbose() else identity)
+      .scan()
 
     try {
       val implementors = scanResult.getClassesImplementing(base)

@@ -2,15 +2,14 @@ package izumi.distage.testkit.services.scalatest.dstest
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-
 import izumi.distage.model.reflection.SafeType
 import izumi.distage.testkit.services.dstest.DistageTestRunner.DistageTest
-import izumi.functional.Value
 import izumi.fundamentals.platform.language.Quirks._
 import izumi.reflect.TagK
 import org.scalatest.{Reporter, StatefulStatus, Tracker}
 
 import scala.collection.mutable
+import scala.util.chaining.scalaUtilChainingOps
 
 object DistageTestsRegistrySingleton {
   final case class SuiteReporter(tracker: Tracker, reporter: Reporter)
@@ -71,7 +70,7 @@ object DistageTestsRegistrySingleton {
       .getOrElseUpdate(SafeType.getK[F], Some(mutable.HashMap.empty))
       .fold {
         // return completed test if the runner has already ran before this test got registered
-        Value(new StatefulStatus).eff(_.setCompleted()).get
+        (new StatefulStatus).tap(_.setCompleted())
       } {
         _.getOrElseUpdate(suiteId, new StatefulStatus)
       }

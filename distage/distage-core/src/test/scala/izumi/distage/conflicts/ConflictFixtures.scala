@@ -1,7 +1,7 @@
 package izumi.distage.conflicts
 
-import izumi.distage.model.planning.AxisPoint
 import izumi.distage.model.definition.conflicts.{Annotated, MutSel, Node}
+import izumi.distage.model.planning.AxisPoint
 import izumi.distage.planning.solver.SemigraphSolver._
 import izumi.fundamentals.graphs.NodeShow
 

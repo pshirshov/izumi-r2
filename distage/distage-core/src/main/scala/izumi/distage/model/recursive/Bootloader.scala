@@ -3,7 +3,7 @@ package izumi.distage.model.recursive
 import izumi.distage.InjectorFactory
 import izumi.distage.model.definition.{Activation, BootstrapModule, Id, Module, ModuleBase}
 import izumi.distage.model.effect.QuasiIO
-import izumi.distage.model.plan.{OrderedPlan, Roots}
+import izumi.distage.model.plan.{DIPlan, Roots}
 import izumi.distage.model.{Injector, PlannerInput}
 import izumi.distage.modules.DefaultModule
 import izumi.fundamentals.platform.functional.Identity
@@ -12,7 +12,7 @@ import izumi.reflect.TagK
 final case class BootstrappedApp(
   injector: Injector[Identity],
   module: ModuleBase,
-  plan: OrderedPlan,
+  plan: DIPlan,
 )
 
 final case class BootConfig(

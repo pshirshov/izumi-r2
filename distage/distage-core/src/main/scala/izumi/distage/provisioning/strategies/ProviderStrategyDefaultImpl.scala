@@ -17,8 +17,7 @@ class ProviderStrategyDefaultImpl extends ProviderStrategy {
           case _ =>
             throw new InvalidPlanException(
               "The impossible happened! Tried to instantiate class," +
-              s" but the dependency has not been initialized: Class: $op.target, dependency: $param",
-              None,
+              s" but the dependency has not been initialized: Class: $op.target, dependency: $param"
             )
         }
     }.toVector

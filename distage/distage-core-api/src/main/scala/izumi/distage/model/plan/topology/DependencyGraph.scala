@@ -3,28 +3,11 @@ package izumi.distage.model.plan.topology
 import izumi.distage.model.plan.topology.DepTreeNode.DepNode
 import izumi.distage.model.plan.topology.DependencyGraph.DependencyKind
 import izumi.distage.model.reflection._
+import izumi.fundamentals.graphs.struct.IncidenceMatrix
 
 import scala.collection.mutable
 
-final case class DependencyGraph(graph: Map[DIKey, Set[DIKey]], kind: DependencyKind) {
-
-  def dropDepsOf(keys: Set[DIKey]): DependencyGraph = {
-    kind match {
-      case DependencyKind.Depends =>
-        val filtered = graph.view.flatMap {
-          case (k, _) if keys.contains(k) =>
-            Seq(k -> Set.empty[DIKey])
-          case o => Seq(o)
-        }.toMap
-        DependencyGraph(filtered, kind)
-      case DependencyKind.Required =>
-        val filtered = graph.view.flatMap {
-          case (k, v) =>
-            Seq(k -> v.diff(keys))
-        }.toMap
-        DependencyGraph(filtered, kind)
-    }
-  }
+final case class DependencyGraph(matrix: IncidenceMatrix[DIKey], kind: DependencyKind) {
 
   /**
     * This method is relatively expensive
@@ -41,12 +24,12 @@ final case class DependencyGraph(graph: Map[DIKey, Set[DIKey]], kind: Dependency
     DepNode(root, this, 0, depth, Set.empty)
   }
 
-  def direct(key: DIKey): Set[DIKey] = graph(key)
+  def direct(key: DIKey): Set[DIKey] = matrix.links(key)
 
-  def contains(key: DIKey): Boolean = graph.contains(key)
+  def contains(key: DIKey): Boolean = matrix.links.contains(key)
 
   private def computeTransitiveDeps(key: DIKey, acc: mutable.Set[DIKey]): Unit = {
-    val deps = graph.getOrElse(key, Set.empty)
+    val deps = matrix.links.getOrElse(key, Set.empty)
     val withoutItself = deps.filterNot(_ == key)
     val toFetch = withoutItself.diff(acc)
     acc ++= deps

@@ -6,7 +6,7 @@ import izumi.distage.framework.model.IntegrationCheck
 import izumi.distage.framework.services.RoleAppPlanner.AppStartupPlans
 import izumi.distage.model.definition.{Activation, BootstrapModule, Id}
 import izumi.distage.model.effect.{QuasiAsync, QuasiIO, QuasiIORunner}
-import izumi.distage.model.plan.{OrderedPlan, Roots, TriSplittedPlan}
+import izumi.distage.model.plan.{DIPlan, Roots, TriSplittedPlan}
 import izumi.distage.model.recursive.{BootConfig, Bootloader}
 import izumi.distage.model.reflection.DIKey
 import izumi.distage.modules.DefaultModule
@@ -22,7 +22,7 @@ trait RoleAppPlanner {
 object RoleAppPlanner {
 
   final case class AppStartupPlans(
-    runtime: OrderedPlan,
+    runtime: DIPlan,
     app: TriSplittedPlan,
     injector: Injector[Identity],
   )
@@ -57,7 +57,7 @@ object RoleAppPlanner {
       )
       val runtimeKeys = runtimeBsApp.plan.keys
 
-      val appPlan = runtimeBsApp.injector.trisectByKeys(activation, runtimeBsApp.module.drop(runtimeKeys), appMainRoots) {
+      val appPlan = runtimeBsApp.injector.ops.trisectByKeys(activation, runtimeBsApp.module.drop(runtimeKeys), appMainRoots) {
         _.collectChildrenKeysSplit[IntegrationCheck[Identity], IntegrationCheck[F]]
       }
 

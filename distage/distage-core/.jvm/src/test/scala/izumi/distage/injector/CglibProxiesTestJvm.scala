@@ -282,6 +282,7 @@ class CglibProxiesTestJvm extends AnyWordSpec with MkInjector {
       )
 
       val plan = injector.plan(definition)
+      println(plan.render())
       injector.produce(plan).unsafeGet()
     }
   }
@@ -303,7 +304,7 @@ class CglibProxiesTestJvm extends AnyWordSpec with MkInjector {
         assert(context.get[Circular1] != null)
         assert(context.get[Circular1].circular2 != context.get[Circular2])
       }
-      assert(res.getMessage.contains("Failed to instantiate class with CGLib, make sure you don't use proxied parameters in constructors"))
+      assert(res.getMessage.contains("Failed to instantiate class with CGLib, make sure you don't dereference proxied parameters in constructors"))
     }
 
     "progression test: cglib proxies can't resolve circular path-dependent dependencies (we don't take prefix type into account when calling constructor for generated lambdas and end up choosing the wrong constructor...)" in {

@@ -1,19 +1,22 @@
 package izumi.distage.model.planning
 
 import izumi.distage.model.definition.{Activation, ModuleBase}
-import izumi.distage.model.plan.{OrderedPlan, TriSplittedPlan}
+import izumi.distage.model.plan.{DIPlan, TriSplittedPlan}
 import izumi.distage.model.reflection._
 import izumi.distage.model.{Planner, PlannerInput}
 
-trait PlanSplittingOps { this: Planner =>
-
+@deprecated("should be removed with OrderedPlan", "13/04/2021")
+class PlanSplittingOps(
+  planner: Planner
+) {
+  @deprecated("should be removed with OrderedPlan", "13/04/2021")
   final def trisectByKeys(
     activation: Activation,
     appModule: ModuleBase,
     primaryRoots: Set[DIKey],
-  )(extractSubRoots: OrderedPlan => (Set[DIKey], Set[DIKey])
+  )(extractSubRoots: DIPlan => (Set[DIKey], Set[DIKey])
   ): TriSplittedPlan = {
-    val rewritten = rewrite(appModule)
+    val rewritten = planner.rewrite(appModule)
     val basePlan = toSubplanNoRewrite(activation, rewritten, primaryRoots)
 
     // here we extract integration checks out of our shared components plan and build it
@@ -21,6 +24,7 @@ trait PlanSplittingOps { this: Planner =>
     trisect(activation, rewritten, basePlan, primaryRoots, subplanRoots1, subplanRoots2)
   }
 
+  @deprecated("should be removed with OrderedPlan", "13/04/2021")
   final def trisectByRoots(
     activation: Activation,
     appModule: ModuleBase,
@@ -34,7 +38,7 @@ trait PlanSplittingOps { this: Planner =>
   private[this] final def trisect(
     activation: Activation,
     appModule: ModuleBase,
-    baseplan: OrderedPlan,
+    baseplan: DIPlan,
     primaryRoots: Set[DIKey],
     subplanRoots1: Set[DIKey],
     subplanRoots2: Set[DIKey],
@@ -43,15 +47,15 @@ trait PlanSplittingOps { this: Planner =>
     val subplanRoots = subplanRoots1 ++ subplanRoots2
     val extractedSubplan = truncateOrReplan(activation, appModule, baseplan, subplanRoots)
 
-    val sharedKeys = extractedSubplan.index.keySet.intersect(baseplan.index.keySet)
+    val sharedKeys = extractedSubplan.keys.intersect(baseplan.keys)
     val sharedPlan = truncateOrReplan(activation, appModule, extractedSubplan, sharedKeys)
 
     val primplan = baseplan.replaceWithImports(sharedKeys)
     val subplan = extractedSubplan.replaceWithImports(sharedKeys)
 
-    assert(subplan.declaredRoots == subplanRoots)
-    assert(primplan.declaredRoots == primaryRoots)
-    assert(sharedPlan.declaredRoots == sharedKeys)
+//    assert(subplan.declaredRoots == subplanRoots)
+//    assert(primplan.declaredRoots == primaryRoots)
+//    assert(sharedPlan.declaredRoots == sharedKeys)
 
     TriSplittedPlan(
       side = subplan,
@@ -62,26 +66,21 @@ trait PlanSplittingOps { this: Planner =>
     )
   }
 
-  private[this] final def truncateOrReplan(activation: Activation, appModule: ModuleBase, basePlan: OrderedPlan, subplanKeys: Set[DIKey]): OrderedPlan = {
-    val isSubset = subplanKeys.diff(basePlan.index.keySet).isEmpty
+  private[this] final def truncateOrReplan(activation: Activation, appModule: ModuleBase, basePlan: DIPlan, subplanKeys: Set[DIKey]): DIPlan = {
+    val isSubset = subplanKeys.diff(basePlan.keys).isEmpty
     if (isSubset) {
-//      //truncate(basePlan, subplanKeys)
-//      ???
-      // TODO: this can be optimized by truncation instead of replanning
       toSubplanNoRewrite(activation, appModule, subplanKeys)
-
     } else {
       toSubplanNoRewrite(activation, appModule, subplanKeys)
     }
-
   }
 
-  private[this] final def toSubplanNoRewrite(activation: Activation, appModule: ModuleBase, extractedRoots: Set[DIKey]): OrderedPlan = {
+  private[this] final def toSubplanNoRewrite(activation: Activation, appModule: ModuleBase, extractedRoots: Set[DIKey]): DIPlan = {
     if (extractedRoots.nonEmpty) {
       // exclude runtime
-      planNoRewrite(PlannerInput(appModule, activation, extractedRoots))
+      planner.planNoRewrite(PlannerInput(appModule, activation, extractedRoots))
     } else {
-      OrderedPlan.empty
+      DIPlan.empty
     }
   }
 

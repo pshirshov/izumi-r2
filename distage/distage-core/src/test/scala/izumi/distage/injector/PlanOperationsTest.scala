@@ -34,21 +34,21 @@ class PlanOperationsTest extends AnyWordSpec with MkInjector {
       primary ++ sub,
     )
 
-    val split = injector.trisectByKeys(Activation.empty, definition.bindings, primary) {
+    val split = injector.ops.trisectByKeys(Activation.empty, definition.bindings, primary) {
       baseplan =>
-        assert(sub.intersect(baseplan.index.keySet).isEmpty)
+        assert(sub.intersect(baseplan.keys).isEmpty)
         (sub, Set.empty)
     }
 
-    assert(Set(sc0, sc1, sc2).diff(split.shared.index.keySet).isEmpty)
+    assert(Set(sc0, sc1, sc2).diff(split.shared.keys).isEmpty)
 
-    assert((primary ++ sub).intersect(split.shared.index.keySet).isEmpty)
-    assert(primary.intersect(split.side.index.keySet).isEmpty)
-    assert(sub.intersect(split.primary.index.keySet).isEmpty)
+    assert((primary ++ sub).intersect(split.shared.keys).isEmpty)
+    assert(primary.intersect(split.side.keys).isEmpty)
+    assert(sub.intersect(split.primary.keys).isEmpty)
 
-    assert(split.primary.index.keySet.intersect(split.side.index.keySet) == Set(sc2))
-    assert(split.primary.index.keySet.intersect(split.shared.index.keySet) == Set(sc2))
-    assert(split.side.index.keySet.intersect(split.shared.index.keySet) == Set(sc2))
+    assert(split.primary.keys.intersect(split.side.keys) == Set(sc2))
+    assert(split.primary.keys.intersect(split.shared.keys) == Set(sc2))
+    assert(split.side.keys.intersect(split.shared.keys) == Set(sc2))
   }
 
   "support ghost components in trisplit" in {
@@ -67,22 +67,22 @@ class PlanOperationsTest extends AnyWordSpec with MkInjector {
       primary ++ sub,
     )
 
-    val split = injector.trisectByKeys(Activation.empty, definition.bindings, primary)(_ => (sub, Set.empty))
+    val split = injector.ops.trisectByKeys(Activation.empty, definition.bindings, primary)(_ => (sub, Set.empty))
 
-    val sideIndex = split.side.index
-    val primaryIndex = split.primary.index
-    val sharedIndex = split.shared.index
+    val sideIndex = split.side
+    val primaryIndex = split.primary
+    val sharedIndex = split.shared
 
-    assert(primaryIndex.keySet.intersect(sideIndex.keySet).intersect(sharedIndex.keySet) == Set(icKey))
+    assert(primaryIndex.keys.intersect(sideIndex.keys).intersect(sharedIndex.keys) == Set(icKey))
 
-    assert(sharedIndex.keySet == Set(sc0, sc1, sc2, icKey))
+    assert(sharedIndex.keys == Set(sc0, sc1, sc2, icKey))
 
-    assert(sideIndex.keySet == Set(icKey))
-    assert(sideIndex.get(icKey).exists(_.isInstanceOf[ImportDependency]))
+    assert(sideIndex.keys == Set(icKey))
+    assert(sideIndex.plan.meta.nodes.get(icKey).exists(_.isInstanceOf[ImportDependency]))
 
-    assert(primaryIndex.keySet == Set(icKey, pcKey, sc2))
-    assert(primaryIndex.get(icKey).exists(_.isInstanceOf[ImportDependency]))
-    assert(primaryIndex.get(sc2).exists(_.isInstanceOf[ImportDependency]))
+    assert(primaryIndex.keys == Set(icKey, pcKey, sc2))
+    assert(primaryIndex.plan.meta.nodes.get(icKey).exists(_.isInstanceOf[ImportDependency]))
+    assert(primaryIndex.plan.meta.nodes.get(sc2).exists(_.isInstanceOf[ImportDependency]))
   }
 
   "support plan separation" in {
@@ -105,8 +105,8 @@ class PlanOperationsTest extends AnyWordSpec with MkInjector {
 
     def verifySingleImport(key: DIKey): Unit = {
       val plan = srcPlan.replaceWithImports(Set(key))
-      assert(plan.index.get(key).exists(_.isInstanceOf[ImportDependency]))
-      assert(plan.index.values.collect { case i: ImportDependency => i }.size == 1)
+      assert(plan.plan.meta.nodes.get(key).exists(_.isInstanceOf[ImportDependency]))
+      assert(plan.plan.meta.nodes.values.collect { case i: ImportDependency => i }.size == 1)
       assert(!plan.definition.keys.contains(key))
       ()
     }

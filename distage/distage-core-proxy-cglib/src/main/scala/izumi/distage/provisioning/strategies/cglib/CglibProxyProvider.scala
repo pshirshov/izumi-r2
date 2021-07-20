@@ -47,7 +47,7 @@ class CglibProxyProvider extends ProxyProvider {
     } catch {
       case f: Throwable =>
         throw new CgLibInstantiationOpException(
-          s"Failed to instantiate class with CGLib, make sure you don't use proxied parameters in constructors: " +
+          s"Failed to instantiate class with CGLib, make sure you don't dereference proxied parameters in constructors: " +
           s"class=${proxyContext.runtimeClass}, params=${proxyContext.params}, exception=${f.stackTrace}",
           clazz,
           proxyContext.params,

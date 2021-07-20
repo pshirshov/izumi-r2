@@ -41,9 +41,9 @@ class AnimalModelTestJvm extends AnyWordSpec with MkInjector {
         println()
         println(plan.render())
         println()
-        println(plan.renderDeps(plan.topology.dependencies.tree(DIKey.get[AccountsApiImpl])))
-        println(plan.renderAllDeps())
-        println()
+//        println(plan.renderDeps(plan.topology.dependencies.tree(DIKey.get[AccountsApiImpl])))
+//        println(plan.renderAllDeps())
+//        println()
       }
       val context = injector.produce(plan).unsafeGet()
       assert(context.find[App].nonEmpty)

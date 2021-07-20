@@ -54,12 +54,23 @@ abstract class ProxyStrategyDefaultImplPlatformSpecific(
       param.key.tpe.cls
     }
 
+    val declaredKey = param.key
+    // see keep proxies alive in case of intersecting loops
+    // there may be a situation when we have intersecting loops resolved independently and real implementation may be not available yet, so fallback is necessary
+    val realKey = declaredKey match {
+      case DIKey.ProxyInitKey(proxied) =>
+        proxied
+      case key =>
+        key
+    }
+
     val value = param match {
-      case param if forwardRefs.contains(param.key) =>
+      case param if forwardRefs.contains(realKey) || forwardRefs.contains(declaredKey) =>
         // substitute forward references by `null`
         TypeUtil.defaultValue(param.key.tpe.cls)
       case param =>
-        context.fetchKey(param.key, param.isByName) match {
+
+        context.fetchKey(declaredKey, param.isByName) match {
           case Some(v) =>
             v.asInstanceOf[Any]
           case None =>

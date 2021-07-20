@@ -1,80 +1,69 @@
 package izumi.distage.planning.sequential
 
-import izumi.distage.model.exceptions._
-import izumi.distage.model.plan.ExecutableOp.{CreateSet, ProxyOp}
-import izumi.distage.model.plan.{ExecutableOp, OrderedPlan}
+import distage.Roots
+import izumi.distage.model.definition.errors.DIError
+import izumi.distage.model.plan.ExecutableOp
+import izumi.distage.model.plan.ExecutableOp.ProxyOp
 import izumi.distage.model.planning.{PlanAnalyzer, SanityChecker}
 import izumi.distage.model.reflection.DIKey
-
-import scala.collection.mutable
+import izumi.functional.IzEither._
+import izumi.fundamentals.graphs.DG
 
 class SanityCheckerDefaultImpl(
   protected val planAnalyzer: PlanAnalyzer
 ) extends SanityChecker {
 
-  override def assertFinalPlanSane(plan: OrderedPlan): Unit = {
-    assertNoDuplicateOps(plan.steps)
+  override def verifyPlan(plan: DG[DIKey, ExecutableOp], roots: Roots): Either[List[DIError.VerificationError], Unit] = {
+    val inconsistentKeys = plan.meta.nodes.filter { case (k, op) => k != op.target }
+    val unreferencedKeys = plan.meta.nodes.keySet -- plan.successors.links.keySet
+    val missingKeys = plan.successors.links.keySet -- plan.meta.nodes.keySet
+    val matricesRepresentSameGraph = plan.successors == plan.predecessors.transposed
 
-    val reftable = planAnalyzer.topologyFwdRefs(plan.steps)
-    if (reftable.dependees.graph.nonEmpty) {
-      throw new ForwardRefException(s"Cannot finish the plan, there are forward references: ${reftable.dependees}!", reftable)
+    val missingRefs = {
+      val allAvailableRefs = plan.predecessors.links.keySet
+      val fullDependenciesSet = plan.predecessors.links.flatMap(_._2).toSet
+      fullDependenciesSet -- allAvailableRefs
     }
 
-    val fullRefTable = planAnalyzer.topology(plan.steps)
-
-    val allAvailableRefs = fullRefTable.dependencies.graph.keySet
-    val fullDependenciesSet = fullRefTable.dependencies.graph.flatMap(_._2).toSet
-    val missingRefs = fullDependenciesSet -- allAvailableRefs
-    if (missingRefs.nonEmpty) {
-      throw new MissingRefException(
-        s"Cannot finish the plan, there are missing references: $missingRefs in ${fullRefTable.dependencies}!",
-        missingRefs,
-        Some(fullRefTable),
-      )
+    val (missingProxies, missingInits) = {
+      val ops = plan.meta.nodes.values.toList
+      val proxyInits = ops.collect { case op: ProxyOp.InitProxy => op }
+      val proxies = ops.collect { case op: ProxyOp.MakeProxy => op }
+      val proxyInitSources = proxyInits.map(_.target.proxied: DIKey)
+      val proxyKeys = proxies.map(_.target: DIKey)
+      // every proxy op has matching init op
+      val missingProxies = proxyKeys.diff(proxyInitSources).toSet
+      // every init op has matching proxy op
+      val missingInits = proxyInitSources.diff(proxyKeys).toSet
+      (missingProxies, missingInits)
     }
 
-    val missingRoots = plan.declaredRoots.diff(plan.keys)
-    if (missingRoots.nonEmpty) {
-      throw new MissingRootsException(s"Missing GC roots in final plan, check if there were any conflicts: $missingRoots", missingRoots)
+    val missingRoots = roots match {
+      case Roots.Of(roots) =>
+        roots.toSet.diff(plan.meta.nodes.keySet)
+      case Roots.Everything =>
+        Set.empty[DIKey]
     }
-  }
 
-  override def assertNoDuplicateOps(ops: Seq[ExecutableOp]): Unit = {
-    val (proxies, single) = ops.partition(_.isInstanceOf[ProxyOp.InitProxy])
-
-    val (uniqOps, nonUniqueOps) = single
-      .foldLeft((mutable.ArrayBuffer[DIKey](), mutable.HashSet[DIKey]())) {
-        case ((unique, nonunique), s: CreateSet) =>
-          (unique, nonunique += s.target)
-        case ((unique, nonunique), s) =>
-          (unique += s.target, nonunique)
+    def failIf(cond: => Boolean)(error: => DIError.VerificationError): Either[List[DIError.VerificationError], Unit] = {
+      if (cond) {
+        Left(List(error))
+      } else {
+        Right(())
       }
-
-    val proxyKeys = proxies.map(_.target)
-
-    assertNoDuplicateKeys(uniqOps.toSeq ++ nonUniqueOps.toSeq) // 2.13 compat
-    assertNoDuplicateKeys(proxyKeys)
-
-    val missingProxies = proxyKeys.toSet -- uniqOps.toSet
-    if (missingProxies.nonEmpty) {
-      throw new MissingRefException(s"Cannot finish the plan, there are missing proxy refs: $missingProxies!", missingProxies, None)
-
     }
+
+    val checks = Seq(
+      failIf(!matricesRepresentSameGraph)(DIError.VerificationError.BUG_PlanMatricesInconsistent(plan)),
+      failIf(inconsistentKeys.nonEmpty)(DIError.VerificationError.BUG_PlanIndexIsBroken(inconsistentKeys)),
+      failIf(unreferencedKeys.nonEmpty)(DIError.VerificationError.BUG_PlanIndexHasUnrequiredOps(unreferencedKeys)),
+      failIf(missingKeys.nonEmpty)(DIError.VerificationError.PlanReferencesMissingOperations(missingKeys)),
+      failIf(missingRefs.nonEmpty)(DIError.VerificationError.MissingRefException(missingRefs, plan)),
+      failIf(missingProxies.nonEmpty)(DIError.VerificationError.BUG_InitWithoutProxy(missingProxies)),
+      failIf(missingInits.nonEmpty)(DIError.VerificationError.BUG_ProxyWithoutInit(missingInits)),
+      failIf(missingRoots.nonEmpty)(DIError.VerificationError.BUG_ProxyWithoutInit(missingRoots)),
+    )
+
+    checks.biAggregateVoid
   }
-
-  private def assertNoDuplicateKeys(keys: Seq[DIKey]): Unit = {
-    val dupes = duplicates(keys)
-    if (dupes.nonEmpty) {
-      throw new DuplicateKeysException(s"Cannot finish the plan, there are duplicates: $dupes!", dupes)
-    }
-  }
-
-  private def duplicates(keys: Seq[DIKey]): Map[DIKey, Int] = {
-    val counted = keys
-      .groupBy(k => k)
-      .map(t => (t._1, t._2.length))
-
-    counted.filter(_._2 > 1)
-  }
-
 }

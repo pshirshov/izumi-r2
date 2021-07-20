@@ -1,50 +1,23 @@
 package izumi.distage.planning.extensions
 
-import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Paths}
-import java.util.concurrent.atomic.AtomicReference
-
 import distage._
+import izumi.distage.model.plan.{ExecutableOp, Wiring}
 import izumi.distage.model.plan.ExecutableOp.{MonadicOp, ProxyOp}
 import izumi.distage.model.plan.repr.KeyMinimizer
-import izumi.distage.model.plan.{OrderedPlan => _, SemiPlan => _, _}
-import izumi.distage.model.planning.{PlanAnalyzer, PlanningObserver}
+import izumi.distage.model.planning.PlanningObserver
 import izumi.distage.planning.extensions.GraphDumpObserver.RenderedDot
+import izumi.fundamentals.graphs.DG
 import izumi.fundamentals.graphs.dotml.Digraph
 import izumi.fundamentals.platform.language.Quirks._
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
 import scala.collection.mutable
 
-final class GraphDumpObserver(
-  planAnalyzer: PlanAnalyzer
-) extends PlanningObserver {
-  private[this] val beforeFinalization = new AtomicReference[SemiPlan](null)
+final class GraphDumpObserver() extends PlanningObserver {
+  override def onPlanningFinished(input: PlannerInput, plan: DG[DIKey, ExecutableOp]): Unit = {
+    //  // TODO: elements removed by gc were lost, we need to address that as a part of #1220
 
-  // TODO: elements removed by gc were lost, we need to address that as a part of #1220
-  override def onPhase10PostGC(plan: SemiPlan): Unit = synchronized {
-    beforeFinalization.set(plan)
-  }
-
-  override def onPhase90AfterForwarding(finalPlan: OrderedPlan): Unit = synchronized {
-    val dotfileFull = render(finalPlan, withGc = true)
-    val dotfileMin = render(finalPlan, withGc = false)
-    save(dotfileFull, "full")
-    save(dotfileMin, "nogc")
-  }
-
-  def save(dotfile: RenderedDot, kind: String): Unit = {
-    val name = s"plan-${System.currentTimeMillis()}-$kind.gv"
-    val last = Paths.get(s"target", s"plan-last-$kind.gv")
-
-    Paths.get("target").toFile.mkdirs().discard()
-
-    val path = Paths.get(s"target", name)
-    Files.write(path, dotfile.raw.getBytes(StandardCharsets.UTF_8)).discard()
-    Files.deleteIfExists(last).discard()
-    Files.createLink(last, path).discard()
-  }
-
-  def render(finalPlan: OrderedPlan, withGc: Boolean): RenderedDot = {
     val g = new Digraph(graphAttr = mutable.Map("rankdir" -> "TB"))
 
     val legend = new Digraph("cluster_legend", graphAttr = mutable.Map("label" -> "Legend", "style" -> "dotted"))
@@ -59,19 +32,24 @@ final class GraphDumpObserver(
     }
 
     val main = new Digraph("cluster_main", graphAttr = mutable.Map("label" -> "Context", "shape" -> "box"))
-    val collected = new Digraph("cluster_collected", graphAttr = mutable.Map("label" -> "Collected", "style" -> "dotted"))
+    //val collected = new Digraph("cluster_collected", graphAttr = mutable.Map("label" -> "Collected", "style" -> "dotted"))
 
-    val preGcPlan = beforeFinalization.get()
-    val preTopology = planAnalyzer.topology(preGcPlan.steps)
+    //    val preGcPlan = beforeFinalization.get()
+    //    val preTopology = planAnalyzer.topology(preGcPlan.steps)
 
-    val originalKeys = preTopology.dependencies.graph.keys
-    val goodKeys = finalPlan.keys
+    //    val originalKeys = preTopology.dependencies.graph.keys
+    val goodKeys = plan.meta.nodes.keySet
 
-    val missingKeys = originalKeys.toSet.diff(goodKeys)
-    val missingKeysSeq = missingKeys.toSeq
+    //    val missingKeys = originalKeys.toSet.diff(goodKeys)
+    //    val missingKeysSeq = missingKeys.toSeq
 
-    val km = new KeyMinimizer(goodKeys ++ originalKeys)
-    val roots = finalPlan.declaredRoots
+    val km = new KeyMinimizer(goodKeys /*++ originalKeys*/, colors = false)
+    val roots = input.roots match {
+      case Roots.Of(roots) =>
+        roots.toSet
+      case Roots.Everything =>
+        plan.noSuccessors
+    }
 
     goodKeys.foreach {
       k =>
@@ -82,13 +60,13 @@ final class GraphDumpObserver(
         }
         val attrs = mutable.Map("style" -> "filled", "shape" -> "box") ++ rootStyle
 
-        val op = finalPlan.toSemi.index(k)
+        val op = plan.meta.nodes(k)
         val name = km.renderKey(k)
         modify(name, attrs, op)
         main.node(name, attrs = attrs)
     }
 
-    finalPlan.topology.dependencies.graph.foreach {
+    plan.predecessors.links.foreach {
       case (k, deps) =>
         deps.foreach {
           d =>
@@ -96,36 +74,51 @@ final class GraphDumpObserver(
         }
     }
 
-    if (withGc) {
-      missingKeysSeq.foreach {
-        k =>
-          val attrs = mutable.Map("style" -> "filled", "shape" -> "box", "fillcolor" -> "coral1")
-          val op = preGcPlan.index(k)
-          val name = km.renderKey(k)
-          modify(name, attrs, op)
-          collected.node(name, attrs = attrs)
-      }
-
-      preTopology.dependencies.graph.foreach {
-        case (k, deps) =>
-          deps.foreach {
-            d =>
-              if ((missingKeys.contains(k) && !missingKeys.contains(d)) || (missingKeys.contains(d) && !missingKeys.contains(k))) {
-                collected.edge(km.renderKey(k), km.renderKey(d), attrs = mutable.Map("color" -> "coral1"))
-              } else if (missingKeys.contains(d) && missingKeys.contains(k)) {
-                collected.edge(km.renderKey(k), km.renderKey(d))
-              }
-          }
-      }
-    }
+    //    if (withGc) {
+    //      missingKeysSeq.foreach {
+    //        k =>
+    //          val attrs = mutable.Map("style" -> "filled", "shape" -> "box", "fillcolor" -> "coral1")
+    //          val op = preGcPlan.index(k)
+    //          val name = km.renderKey(k)
+    //          modify(name, attrs, op)
+    //          collected.node(name, attrs = attrs)
+    //      }
+    //
+    //      preTopology.dependencies.graph.foreach {
+    //        case (k, deps) =>
+    //          deps.foreach {
+    //            d =>
+    //              if ((missingKeys.contains(k) && !missingKeys.contains(d)) || (missingKeys.contains(d) && !missingKeys.contains(k))) {
+    //                collected.edge(km.renderKey(k), km.renderKey(d), attrs = mutable.Map("color" -> "coral1"))
+    //              } else if (missingKeys.contains(d) && missingKeys.contains(k)) {
+    //                collected.edge(km.renderKey(k), km.renderKey(d))
+    //              }
+    //          }
+    //      }
+    //    }
 
     g.subGraph(main)
-    if (withGc) {
-      g.subGraph(collected)
-    }
+    //    if (withGc) {
+    //      g.subGraph(collected)
+    //    }
     g.subGraph(legend)
     val res = g.source()
-    new RenderedDot(res)
+    val dotfileMin = new RenderedDot(res)
+
+    //save(dotfileFull, "full")
+    save(dotfileMin, "aftergc")
+  }
+
+  private[this] def save(dotfile: RenderedDot, kind: String): Unit = {
+    val name = s"plan-${System.currentTimeMillis()}-$kind.gv"
+    val last = Paths.get(s"target", s"plan-last-$kind.gv")
+
+    Paths.get("target").toFile.mkdirs().discard()
+
+    val path = Paths.get(s"target", name)
+    Files.write(path, dotfile.raw.getBytes(StandardCharsets.UTF_8)).discard()
+    Files.deleteIfExists(last).discard()
+    Files.createLink(last, path).discard()
   }
 
   private[this] def modify(name: String, attrs: mutable.Map[String, String], op: ExecutableOp): Unit = {

@@ -21,9 +21,9 @@ import izumi.reflect.TagK
   *  - Untested on constructors accepting primitive values, will fail most likely
   */
 class ProxyStrategyDefaultImpl(
-  proxyProvider: ProxyProvider,
-  mirrorProvider: MirrorProvider,
-) extends ProxyStrategyDefaultImplPlatformSpecific(proxyProvider, mirrorProvider)
+                                proxyProvider: ProxyProvider,
+                                mirrorProvider: MirrorProvider,
+                              ) extends ProxyStrategyDefaultImplPlatformSpecific(proxyProvider, mirrorProvider)
   with ProxyStrategy {
 
   override def makeProxy(context: ProvisioningKeyProvider, @unused executor: WiringExecutor, makeProxy: ProxyOp.MakeProxy): Seq[NewObjectOp] = {
@@ -42,18 +42,18 @@ class ProxyStrategyDefaultImpl(
 
     Seq(
       NewObjectOp.NewInstance(makeProxy.target, proxyInstance.proxy),
-      NewObjectOp.NewInstance(proxyKey(makeProxy.target), proxyInstance.dispatcher),
+      NewObjectOp.NewInstance(proxyControllerKey(makeProxy.target), proxyInstance.dispatcher),
     )
   }
 
-  override def initProxy[F[_]: TagK](
-    context: ProvisioningKeyProvider,
-    executor: OperationExecutor,
-    initProxy: ProxyOp.InitProxy,
-  )(implicit F: QuasiIO[F]
-  ): F[Seq[NewObjectOp]] = {
-    val target = initProxy.target
-    val key = proxyKey(target)
+  override def initProxy[F[_] : TagK](
+                                       context: ProvisioningKeyProvider,
+                                       executor: OperationExecutor,
+                                       initProxy: ProxyOp.InitProxy,
+                                     )(implicit F: QuasiIO[F]
+                                     ): F[Seq[NewObjectOp]] = {
+    val target = initProxy.proxy.target
+    val key = proxyControllerKey(target)
 
     context.fetchUnsafe(key) match {
       case Some(dispatcher: ProxyDispatcher) =>
@@ -62,12 +62,17 @@ class ProxyStrategyDefaultImpl(
           .flatMap(_.toList match {
             case NewObjectOp.NewInstance(_, instance) :: Nil =>
               F.maybeSuspend(dispatcher.init(instance.asInstanceOf[AnyRef]))
-                .map(_ => Seq.empty)
+                .map(_ => Seq(
+                  NewObjectOp.NewInstance(initProxy.target, instance)
+                ))
 
-            case (r @ NewObjectOp.NewResource(_, instance, _)) :: Nil =>
+            case (r@NewObjectOp.NewResource(_, instance, _)) :: Nil =>
               val finalizer = r.asInstanceOf[NewObjectOp.NewResource[F]].finalizer
               F.maybeSuspend(dispatcher.init(instance.asInstanceOf[AnyRef]))
-                .map(_ => Seq(NewObjectOp.NewFinalizer(target, finalizer)))
+                .map(_ => Seq(
+                  NewObjectOp.NewInstance(initProxy.target, instance),
+                  NewObjectOp.NewFinalizer(target, finalizer)
+                ))
 
             case r =>
               throw new UnexpectedProvisionResultException(s"Unexpected operation result for $key: $r, expected a single NewInstance!", r)
@@ -95,8 +100,8 @@ class ProxyStrategyDefaultImpl(
     }
   }
 
-  protected def proxyKey(m: DIKey): DIKey = {
-    DIKey.ProxyElementKey(m, SafeType.get[ProxyDispatcher])
+  protected def proxyControllerKey(m: DIKey): DIKey = {
+    DIKey.ProxyControllerKey(m, SafeType.get[ProxyDispatcher])
   }
 
 }

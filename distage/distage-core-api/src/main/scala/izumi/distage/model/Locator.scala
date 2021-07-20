@@ -3,7 +3,7 @@ package izumi.distage.model
 import izumi.distage.AbstractLocator
 import izumi.distage.model.Locator.LocatorMeta
 import izumi.distage.model.definition.Identifier
-import izumi.distage.model.plan.OrderedPlan
+import izumi.distage.model.plan.DIPlan
 import izumi.distage.model.providers.Functoid
 import izumi.distage.model.provisioning.PlanInterpreter.Finalizer
 import izumi.distage.model.references.IdentifiedRef
@@ -40,7 +40,7 @@ trait Locator {
   def lookupRef[T: Tag](key: DIKey): Option[TypedRef[T]]
 
   /** The plan that produced this object graph */
-  def plan: OrderedPlan
+  def plan: DIPlan
   def parent: Option[Locator]
   def meta: LocatorMeta
 
@@ -110,7 +110,7 @@ object Locator {
   val empty: AbstractLocator = new AbstractLocator {
     override protected def lookupLocalUnsafe(key: DIKey): Option[Any] = None
     override def instances: immutable.Seq[IdentifiedRef] = Nil
-    override def plan: OrderedPlan = OrderedPlan.empty
+    override def plan: DIPlan = DIPlan.empty
     override def parent: Option[Locator] = None
     override def finalizers[F[_]: TagK]: Seq[Finalizer[F]] = Nil
     override def index: Map[DIKey, Any] = Map.empty

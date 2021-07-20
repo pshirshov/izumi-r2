@@ -13,12 +13,11 @@ import izumi.distage.model.provisioning.strategies._
 import izumi.distage.model.provisioning.{PlanInterpreter, ProvisioningFailureInterceptor}
 import izumi.distage.model.reflection.{DIKey, MirrorProvider}
 import izumi.distage.planning._
-import izumi.distage.planning.sequential.{ForwardingRefResolverDefaultImpl, SanityCheckerDefaultImpl}
+import izumi.distage.planning.sequential.{ForwardingRefResolverDefaultImpl, FwdrefLoopBreaker, SanityCheckerDefaultImpl}
 import izumi.distage.planning.solver.SemigraphSolver.SemigraphSolverImpl
 import izumi.distage.planning.solver.{GraphPreparations, PlanSolver, SemigraphSolver}
 import izumi.distage.provisioning._
 import izumi.distage.provisioning.strategies._
-import izumi.fundamentals.platform.console.TrivialLogger
 import izumi.fundamentals.platform.functional.Identity
 
 object BootstrapLocator {
@@ -47,35 +46,30 @@ object BootstrapLocator {
     // Please open an issue if you need the ability to override Activation using BootstrapModule
     val bindings = bindings0 ++ BootstrapLocator.selfReflectionModule(bindings0, bootstrapActivation)
 
-    val plan: OrderedPlan =
+    val plan =
       BootstrapLocator.bootstrapPlanner
         .plan(bindings, bootstrapActivation, Roots.Everything)
 
     val resource =
       BootstrapLocator.bootstrapProducer
-        .instantiate[Identity](plan, parent.getOrElse(Locator.empty), FinalizerFilter.all)
+        .run[Identity](plan, parent.getOrElse(Locator.empty), FinalizerFilter.all)
 
     resource.unsafeGet().throwOnFailure()
   }
 
   private[this] final val mirrorProvider = MirrorProvider.Impl
   private[this] final val fullStackTraces = izumi.distage.DebugProperties.`izumi.distage.interpreter.full-stacktraces`.boolValue(true)
-  private[this] final val initProxiesAsap = izumi.distage.DebugProperties.`izumi.distage.init-proxies-asap`.boolValue(true)
+  private[this] final val analyzer = new PlanAnalyzerDefaultImpl
 
   private final val bootstrapPlanner: Planner = {
-    val analyzer = new PlanAnalyzerDefaultImpl
 
-    val bootstrapObserver = new PlanningObserverAggregate(
-      Set(
-        new BootstrapPlanningObserver(TrivialLogger.make[BootstrapLocator.type](izumi.distage.DebugProperties.`izumi.distage.debug.bootstrap`.name))
-        //new GraphObserver(analyzer, Set.empty),
-      )
-    )
+    val bootstrapObserver = new PlanningObserverAggregate(Set.empty)
 
-    val hook = new PlanningHookAggregate(Set.empty)
-    val forwardingRefResolver = new ForwardingRefResolverDefaultImpl(analyzer, true)
-    val sanityChecker = new SanityCheckerDefaultImpl(analyzer)
     val mp = mirrorProvider
+    val hook = new PlanningHookAggregate(Set.empty)
+    val loopBreaker = new FwdrefLoopBreaker.FwdrefLoopBreakerDefaultImpl(mp, analyzer)
+    val forwardingRefResolver = new ForwardingRefResolverDefaultImpl(loopBreaker)
+    val sanityChecker = new SanityCheckerDefaultImpl(analyzer)
     val resolver = new PlanSolver.Impl(
       new SemigraphSolverImpl[DIKey, Int, InstantiationOp](),
       new GraphPreparations(new BindingTranslator.Impl()),
@@ -86,8 +80,6 @@ object BootstrapLocator {
       sanityChecker = sanityChecker,
       planningObserver = bootstrapObserver,
       hook = hook,
-      analyzer = analyzer,
-      mirrorProvider = mp,
       resolver = resolver,
     )
   }
@@ -104,11 +96,11 @@ object BootstrapLocator {
       failureHandler = new ProvisioningFailureInterceptor.DefaultImpl,
       verifier = new ProvisionOperationVerifier.Default(mirrorProvider),
       fullStackTraces = fullStackTraces,
+      analyzer = analyzer,
     )
   }
 
   final val defaultBootstrap: BootstrapContextModule = new BootstrapContextModuleDef {
-    make[Boolean].named("distage.init-proxies-asap").fromValue(initProxiesAsap)
     make[Boolean].named("izumi.distage.interpreter.full-stacktraces").fromValue(fullStackTraces)
 
     make[ProvisionOperationVerifier].from[ProvisionOperationVerifier.Default]
@@ -150,6 +142,8 @@ object BootstrapLocator {
 
     make[ProxyStrategy].tagged(Cycles.Disable).from[ProxyStrategyFailingImpl]
     make[ProxyStrategy].from[ProxyStrategyDefaultImpl]
+
+    make[FwdrefLoopBreaker].from[FwdrefLoopBreaker.FwdrefLoopBreakerDefaultImpl]
   }
 
   final val defaultBootstrapActivation: Activation = Activation(

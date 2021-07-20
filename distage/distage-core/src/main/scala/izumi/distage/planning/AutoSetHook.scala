@@ -3,7 +3,7 @@ package izumi.distage.planning
 import izumi.distage.model.definition.Binding.{EmptySetBinding, ImplBinding, SetElementBinding}
 import izumi.distage.model.definition.{Binding, ImplDef, ModuleBase}
 import izumi.distage.model.planning.PlanningHook
-import izumi.distage.model.reflection.DIKey.SetElementKey
+import izumi.distage.model.reflection.DIKey.{SetElementKey, SetKeyMeta}
 import izumi.distage.model.reflection._
 import izumi.fundamentals.platform.language.CodePositionMaterializer
 import izumi.reflect.Tag
@@ -81,16 +81,30 @@ class AutoSetHook[INSTANCE: Tag, BINDING: Tag](implicit pos: CodePositionMateria
     if (setMembers.isEmpty) {
       definition
     } else {
-      val position = pos.get.position
-
-      val elementOps: Set[Binding] = setMembers.map {
+      val elementOps: Set[Binding] = setMembers.flatMap {
         b =>
-          val implType = b.implementation.implType
-          val impl: ImplDef = ImplDef.ReferenceImpl(implType, b.key, weak = true)
+          val isAutosetElement = b.key match {
+            case k: SetElementKey =>
+              k.disambiguator match {
+                case _: SetKeyMeta.WithAutoset =>
+                  true
+                case _ =>
+                  false
+              }
+            case _ =>
+              false
+          }
 
-          SetElementBinding(SetElementKey(setKey, b.key, None), impl, Set.empty, position)
+          if (!isAutosetElement) {
+            val implType = b.implementation.implType
+            val impl: ImplDef = ImplDef.ReferenceImpl(implType, b.key, weak = true)
+            Seq(SetElementBinding(SetElementKey(setKey, b.key, SetKeyMeta.WithAutoset(setKey)), impl, b.tags, b.origin))
+          } else {
+            Seq.empty
+          }
       }
-      val ops: Set[Binding] = Set(EmptySetBinding(setKey, Set.empty, position))
+
+      val ops: Set[Binding] = Set(EmptySetBinding(setKey, Set.empty, pos.get.position))
       definition ++ ModuleBase.make(ops ++ elementOps)
     }
 

@@ -1,56 +1,58 @@
 package izumi.distage.planning
 
 import izumi.distage.model.plan.ExecutableOp.ProxyOp.{InitProxy, MakeProxy}
-import izumi.distage.model.plan.ExecutableOp.{CreateSet, ImportDependency, InstantiationOp, MonadicOp, WiringOp}
+import izumi.distage.model.plan.ExecutableOp.{CreateSet, ImportDependency, MonadicOp, WiringOp}
 import izumi.distage.model.plan._
 import izumi.distage.model.plan.topology.DependencyGraph.DependencyKind
 import izumi.distage.model.plan.topology.PlanTopology.PlanTopologyImmutable
 import izumi.distage.model.plan.topology.{DependencyGraph, PlanTopology}
 import izumi.distage.model.planning.PlanAnalyzer
 import izumi.distage.model.reflection._
+import izumi.fundamentals.graphs.struct.IncidenceMatrix
 
 import scala.annotation.nowarn
 import scala.collection.mutable
 
 @nowarn("msg=Unused import")
 class PlanAnalyzerDefaultImpl extends PlanAnalyzer {
+
   import scala.collection.compat._
 
   def topology(plan: Iterable[ExecutableOp]): PlanTopology = {
     computeTopology(
       plan,
-      _ => _ => false,
-      _ => true,
+      refFilter = _ => _ => false,
+      postFilter = _ => true,
     )
   }
 
   def topologyFwdRefs(plan: Iterable[ExecutableOp]): PlanTopology = {
     computeTopology(
       plan,
-      acc => key => acc.contains(key),
-      _._2.nonEmpty,
+      refFilter = acc => key => acc.contains(key),
+      postFilter = _._2.nonEmpty,
     )
   }
 
-  def requirements(op: ExecutableOp): Set[DIKey] = {
+  def requirements(op: ExecutableOp): Seq[(DIKey, Set[DIKey])] = {
     op match {
       case w: WiringOp =>
-        w.wiring.requiredKeys
+        Seq((op.target, w.wiring.requiredKeys))
 
       case w: MonadicOp =>
-        Set(w.effectKey)
+        Seq((op.target, Set(w.effectKey)))
 
       case c: CreateSet =>
-        c.members
+        Seq((op.target, c.members))
 
       case _: MakeProxy =>
-        Set.empty
+        Seq((op.target, Set.empty))
 
       case _: ImportDependency =>
-        Set.empty
+        Seq((op.target, Set.empty))
 
       case i: InitProxy =>
-        Set(i.proxy.target) ++ requirements(i.proxy.op)
+        Seq((i.target, Set(i.proxy.target))) ++ requirements(i.proxy.op)
     }
   }
 
@@ -63,13 +65,17 @@ class PlanAnalyzerDefaultImpl extends PlanAnalyzer {
   private def computeTopology(plan: Iterable[ExecutableOp], refFilter: RefFilter, postFilter: PostFilter): PlanTopology = {
     val dependencies = plan
       .foldLeft(new Accumulator) {
-        case (acc, op: InstantiationOp) =>
-          val filtered = requirements(op).filterNot(refFilter(acc)) // it's important NOT to update acc before we computed deps
-          acc.getOrElseUpdate(op.target, mutable.Set.empty) ++= filtered
-          acc
-
         case (acc, op) =>
-          acc.getOrElseUpdate(op.target, mutable.Set.empty)
+          requirements(op)
+            .map {
+              case (k, r) =>
+                (k, r.filterNot(refFilter(acc)))
+            } // it's important NOT to update acc before we computed deps
+            .foreach {
+              case (k, r) =>
+                acc.getOrElseUpdate(k, mutable.Set.empty) ++= r
+            }
+
           acc
       }
       .view
@@ -78,7 +84,7 @@ class PlanAnalyzerDefaultImpl extends PlanAnalyzer {
       .toMap
 
     val dependants = reverseReftable(dependencies)
-    PlanTopologyImmutable(DependencyGraph(dependants, DependencyKind.Required), DependencyGraph(dependencies, DependencyKind.Depends))
+    PlanTopologyImmutable(DependencyGraph(IncidenceMatrix(dependants), DependencyKind.Required), DependencyGraph(IncidenceMatrix(dependencies), DependencyKind.Depends))
   }
 
   @nowarn("msg=deprecated")

@@ -12,10 +12,10 @@ import izumi.functional.bio.data.Morphism1
 import izumi.functional.bio.{Fiber2, Fork2, Functor2, Functor3, Local3}
 import izumi.fundamentals.orphans.{`cats.Functor`, `cats.Monad`, `cats.kernel.Monoid`}
 import izumi.fundamentals.platform.functional.Identity
-import izumi.fundamentals.platform.language.Quirks.*
+import izumi.fundamentals.platform.language.Quirks._
 import izumi.fundamentals.platform.language.{open, unused}
 import izumi.reflect.{Tag, TagK, TagK3, TagMacro}
-import zio.*
+import zio._
 import zio.ZManaged.ReleaseMap
 
 import java.util.concurrent.atomic.AtomicReference
@@ -919,7 +919,7 @@ object Lifecycle extends LifecycleCatsInstances {
   }
 
   @inline private final def flatMapImpl[F[_], A, B](self: Lifecycle[F, A])(f: A => Lifecycle[F, B])(implicit F: QuasiIO[F]): Lifecycle[F, B] = {
-    import QuasiIO.syntax.*
+    import QuasiIO.syntax._
     new Lifecycle[F, B] {
       override type InnerResource = AtomicReference[List[() => F[Unit]]]
 
@@ -995,7 +995,7 @@ object Lifecycle extends LifecycleCatsInstances {
     success: A => Lifecycle[F, B],
   )(implicit F: QuasiIO[F]
   ): Lifecycle[F, B] = {
-    import QuasiIO.syntax.*
+    import QuasiIO.syntax._
     new Lifecycle[F, B] {
       override type InnerResource = AtomicReference[List[() => F[Unit]]]
 

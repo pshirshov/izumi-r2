@@ -1,9 +1,11 @@
 package izumi.distage
 
 import izumi.distage.model._
+import izumi.distage.model.definition.errors.DIError
 import izumi.distage.model.definition.{Activation, BootstrapModule, Lifecycle, Module, ModuleBase, ModuleDef}
 import izumi.distage.model.effect.QuasiIO
-import izumi.distage.model.plan.OrderedPlan
+import izumi.distage.model.plan.DIPlan
+import izumi.distage.model.planning.PlanSplittingOps
 import izumi.distage.model.provisioning.PlanInterpreter
 import izumi.distage.model.provisioning.PlanInterpreter.{FailedProvision, FinalizerFilter}
 import izumi.distage.model.recursive.{Bootloader, LocatorRef}
@@ -31,13 +33,22 @@ final class InjectorDefaultImpl[F[_]](
   private[this] val interpreter: PlanInterpreter = bootstrapLocator.get[PlanInterpreter]
   // passed-through into `Bootloader`
   private[this] val bsModule: BootstrapModule = bootstrapLocator.get[BootstrapModule]
+  def ops: PlanSplittingOps = new PlanSplittingOps(this)
 
-  override def plan(input: PlannerInput): OrderedPlan = {
+  override def plan(input: PlannerInput): DIPlan = {
     planner.plan(addSelfInfo(input))
   }
 
-  override def planNoRewrite(input: PlannerInput): OrderedPlan = {
+  override def planNoRewrite(input: PlannerInput): DIPlan = {
     planner.planNoRewrite(addSelfInfo(input))
+  }
+
+  override def planSafe(input: PlannerInput): Either[List[DIError], DIPlan] = {
+    planner.planSafe(addSelfInfo(input))
+  }
+
+  override def planNoRewriteSafe(input: PlannerInput): Either[List[DIError], DIPlan] = {
+    planner.planNoRewriteSafe(addSelfInfo(input))
   }
 
   override def rewrite(module: ModuleBase): ModuleBase = {
@@ -45,12 +56,13 @@ final class InjectorDefaultImpl[F[_]](
   }
 
   override private[distage] def produceDetailedFX[G[_]: TagK: QuasiIO](
-    plan: OrderedPlan,
+    plan: DIPlan,
     filter: FinalizerFilter[G],
   ): Lifecycle[G, Either[FailedProvision[G], Locator]] = {
-    interpreter.instantiate[G](plan, bootstrapLocator, filter)
+    interpreter.run[G](plan, bootstrapLocator, filter)
   }
 
+  // TODO: probably this should be a part of the Planner itself
   private[this] def addSelfInfo(input: PlannerInput): PlannerInput = {
     val selfReflectionModule = InjectorDefaultImpl.selfReflectionModule(parentFactory, bsModule, defaultModule, input.activation, input)
 

@@ -47,7 +47,19 @@ object Roots {
 
   final case class Of(roots: NonEmptySet[DIKey]) extends Roots
 
-  /** Disable garbage collection and try to instantiate every single binding. There's almost always a better way to model things though. */
+  /** Disable garbage collection and try to instantiate every single binding.
+    *
+    * There's almost always a better way to model things though.
+    *
+    * This setting effectively disables Garbage Collection.
+    *
+    * Try to avoid it.
+    *
+    * In some cases (involving circular dependencies) it may be very hard to determine what are actual "root"
+    * components you want to produce, so the behaviour may be somehow heuristical and unsound.
+    *
+    * Also this mode is slower, because an additional tracing pass is required to determine actual root components.
+    */
   case object Everything extends Roots
 
   @deprecated("GCMode.NoGC has been renamed to `Roots.Everything`", "old name will be deleted in 1.1.1")

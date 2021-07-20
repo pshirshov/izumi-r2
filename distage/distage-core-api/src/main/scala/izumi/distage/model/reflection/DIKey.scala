@@ -41,18 +41,41 @@ object DIKey {
     override def toString: String = formatWithIndex(s"{type.${tpe.toString}@${idContract.repr(id)}}", mutatorIndex)
   }
 
+  sealed trait SetKeyMeta
+  object SetKeyMeta {
+    case object NoMeta extends SetKeyMeta
+    final case class WithImpl(disambiguator: ImplDef) extends SetKeyMeta
+    final case  class WithAutoset(base: DIKey) extends SetKeyMeta
+  }
   /**
     * @param set       Key of the parent Set. `set.tpe` must be of type `Set[T]`
     * @param reference Key of `this` individual element. `reference.tpe` must be a subtype of `T`
     */
-  final case class SetElementKey(set: DIKey, reference: DIKey, disambiguator: Option[ImplDef]) extends DIKey {
+  final case class SetElementKey(set: DIKey, reference: DIKey, disambiguator: SetKeyMeta) extends DIKey {
     override def tpe: SafeType = reference.tpe
 
-    override def toString: String = s"{set.$set/${reference.toString}#${disambiguator.fold("0")(_.hashCode.toString)}"
+    override def toString: String = {
+      val drepr = (disambiguator match {
+        case SetKeyMeta.NoMeta =>
+          None
+        case SetKeyMeta.WithImpl(disambiguator) =>
+          Some(s"impl:${disambiguator.hashCode}")
+        case SetKeyMeta.WithAutoset(base) =>
+          Some(s"autoset:${base.toString}")
+      }).map(v => "#" + v).getOrElse("")
+      s"{set.$set/${reference.toString}$drepr"
+    }
   }
 
-  final case class ProxyElementKey(proxied: DIKey, tpe: SafeType) extends DIKey {
-    override def toString: String = s"{proxy.${proxied.toString}}"
+  final case class ProxyInitKey(proxied: DIKey) extends DIKey {
+
+    override def tpe: SafeType = proxied.tpe
+
+    override def toString: String = s"{proxyinit.${proxied.toString}}"
+  }
+
+  final case class ProxyControllerKey(proxied: DIKey, tpe: SafeType) extends DIKey {
+    override def toString: String = s"{proxyref.${proxied.toString}}"
   }
 
   final case class ResourceKey(key: DIKey, tpe: SafeType) extends DIKey {

@@ -4,7 +4,8 @@ import izumi.distage.model.exceptions.DIBugException
 import izumi.distage.model.plan.ExecutableOp.ProxyOp.{InitProxy, MakeProxy}
 import izumi.distage.model.plan.Wiring.SingletonWiring
 import izumi.distage.model.plan.operations.OperationOrigin.EqualizedOperationOrigin
-import izumi.distage.model.plan.repr.{KeyFormatter, OpFormatter, TypeFormatter}
+import izumi.distage.model.plan.repr.{DIRendering, KeyFormatter, OpFormatter, TypeFormatter}
+import izumi.distage.model.reflection.DIKey.ProxyInitKey
 import izumi.distage.model.reflection.{DIKey, SafeType}
 import izumi.reflect.TagK
 
@@ -13,18 +14,15 @@ import scala.annotation.tailrec
 sealed trait ExecutableOp {
   def target: DIKey
   def origin: EqualizedOperationOrigin
-  def replaceKeys(targets: DIKey => DIKey, parameters: DIKey => DIKey): ExecutableOp
-  override final def toString: String = new OpFormatter.Impl(KeyFormatter.Full, TypeFormatter.Full).format(this)
+  override final def toString: String = {
+    new OpFormatter.Impl(KeyFormatter.Full, TypeFormatter.Full, DIRendering.colorsEnabled).format(this)
+  }
 }
 
 object ExecutableOp {
 
   sealed trait SemiplanOp extends ExecutableOp
-  final case class ImportDependency(target: DIKey, references: Set[DIKey], origin: EqualizedOperationOrigin) extends SemiplanOp {
-    override def replaceKeys(targets: DIKey => DIKey, parameters: DIKey => DIKey): ImportDependency = {
-      this.copy(target = targets(this.target))
-    }
-  }
+  final case class ImportDependency(target: DIKey, references: Set[DIKey], origin: EqualizedOperationOrigin) extends SemiplanOp
 
   sealed trait NonImportOp extends ExecutableOp
   sealed trait InstantiationOp extends SemiplanOp with NonImportOp {
@@ -103,16 +101,9 @@ object ExecutableOp {
   object ProxyOp {
     final case class MakeProxy(op: InstantiationOp, forwardRefs: Set[DIKey], origin: EqualizedOperationOrigin, byNameAllowed: Boolean) extends ProxyOp {
       override def target: DIKey = op.target
+    }
 
-      override def replaceKeys(targets: DIKey => DIKey, parameters: DIKey => DIKey): MakeProxy = {
-        this.copy(op = this.op.replaceKeys(targets, parameters), forwardRefs.map(parameters))
-      }
-    }
-    final case class InitProxy(target: DIKey, dependencies: Set[DIKey], proxy: MakeProxy, origin: EqualizedOperationOrigin) extends ProxyOp {
-      override def replaceKeys(targets: DIKey => DIKey, parameters: DIKey => DIKey): InitProxy = {
-        this.copy(target = targets(this.target), dependencies = this.dependencies.map(parameters), proxy = this.proxy.replaceKeys(targets, parameters))
-      }
-    }
+    final case class InitProxy(target: ProxyInitKey, dependencies: Set[DIKey], proxy: MakeProxy, origin: EqualizedOperationOrigin) extends ProxyOp
   }
 
   implicit final class ExecutableOpExt(private val op: ExecutableOp) extends AnyVal {

@@ -2,7 +2,6 @@ package izumi.distage.testkit.services.dstest
 
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
-
 import distage._
 import izumi.distage.config.model.AppConfig
 import izumi.distage.framework.model.exceptions.IntegrationCheckException
@@ -13,8 +12,8 @@ import izumi.distage.model.definition.ImplDef
 import izumi.distage.model.effect.QuasiIO.syntax._
 import izumi.distage.model.effect.{QuasiAsync, QuasiIO, QuasiIORunner}
 import izumi.distage.model.exceptions.ProvisioningException
-import izumi.distage.model.plan.repr.KeyMinimizer
-import izumi.distage.model.plan.{ExecutableOp, TriSplittedPlan}
+import izumi.distage.model.plan.repr.{DIRendering, KeyMinimizer}
+import izumi.distage.model.plan.{DIPlan, ExecutableOp, TriSplittedPlan}
 import izumi.distage.modules.DefaultModule
 import izumi.distage.modules.support.IdentitySupportModule
 import izumi.distage.roles.launcher.EarlyLoggers
@@ -120,7 +119,7 @@ class DistageTestRunner[F[_]: TagK: DefaultModule](
   ): TriSplittedPlan = {
     val sharedKeys = envKeys.intersect(memoizationRoots) -- runtimeKeys
     // compute [[TriSplittedPlan]] of our test, to extract shared plan, and perform it only once
-    injector.trisectByKeys(activation, appModule, sharedKeys) {
+    injector.ops.trisectByKeys(activation, appModule, sharedKeys) {
       _.collectChildrenKeysSplit[IntegrationCheck[Identity], IntegrationCheck[F]]
     }
   }
@@ -174,7 +173,7 @@ class DistageTestRunner[F[_]: TagK: DefaultModule](
       distageTest =>
         val forcedRoots = env.forcedRoots.getActiveKeys(env.activation)
         val testRoots = distageTest.test.get.diKeys.toSet ++ forcedRoots
-        val plan = if (testRoots.nonEmpty) injector.plan(PlannerInput(appModule, env.activation, testRoots)) else OrderedPlan.empty
+        val plan = if (testRoots.nonEmpty) injector.plan(PlannerInput(appModule, env.activation, testRoots)) else DIPlan.empty
         PreparedTest(distageTest, appModule, plan, env.activationInfo, env.activation, planner)
     }
     val envKeys = testPlans.flatMap(_.testPlan.keys).toSet
@@ -209,7 +208,7 @@ class DistageTestRunner[F[_]: TagK: DefaultModule](
       prepareSharedPlan(envKeys, runtimeKeys, Set.empty, env.activation, injector, strengthenedAppModule) :: Nil
     }
 
-    val envMergeCriteria = EnvMergeCriteria(bsPlanMinusVariableKeys, bsModuleMinusVariableKeys, runtimePlan)
+    val envMergeCriteria = EnvMergeCriteria(bsPlanMinusVariableKeys.toVector, bsModuleMinusVariableKeys, runtimePlan)
 
     val memoEnvHashCode = envMergeCriteria.hashCode()
     val integrationLogger = lateLogger("memoEnv" -> memoEnvHashCode)
@@ -424,7 +423,7 @@ class DistageTestRunner[F[_]: TagK: DefaultModule](
 
     val newAppModule = appModule.drop(allSharedKeys)
     val newRoots = testPlan.keys -- allSharedKeys ++ groupStrengthenedKeys.intersect(newAppModule.keys)
-    val newTestPlan = testInjector.trisectByRoots(activation, newAppModule, newRoots, testIntegrationCheckKeysIdentity, testIntegrationCheckKeysEffect)
+    val newTestPlan = testInjector.ops.trisectByRoots(activation, newAppModule, newRoots, testIntegrationCheckKeysIdentity, testIntegrationCheckKeysEffect)
 
     val testLogger = testRunnerLogger("testId" -> test.meta.id)
     testLogger.log(testkitDebugMessagesLogLevel(test.environment.debugOutput))(
@@ -455,7 +454,7 @@ class DistageTestRunner[F[_]: TagK: DefaultModule](
     }
   }
 
-  protected def proceedIndividual(test: DistageTest[F], testPlan: OrderedPlan, parent: Locator)(implicit F: QuasiIO[F]): F[Unit] = {
+  protected def proceedIndividual(test: DistageTest[F], testPlan: DIPlan, parent: Locator)(implicit F: QuasiIO[F]): F[Unit] = {
     def testDuration(before: Option[Long]): FiniteDuration = {
       before.fold(Duration.Zero) {
         before =>
@@ -600,7 +599,7 @@ object DistageTestRunner {
   final case class EnvMergeCriteria(
     bsPlanMinusActivations: Vector[ExecutableOp],
     bsModuleMinusActivations: BootstrapModule,
-    runtimePlan: OrderedPlan,
+    runtimePlan: DIPlan,
   )
   final case class PackedEnv[F[_]](
     envMergeCriteria: EnvMergeCriteria,
@@ -707,7 +706,7 @@ object DistageTestRunner {
         val emptyStep = if (suitePad.isEmpty) "" else s"\n${suitePad.dropRight(5)}║"
 
         val memoizationRootsRendered = if (memoizationRoots.nonEmpty) {
-          val minimizer = KeyMinimizer(memoizationRoots)
+          val minimizer = KeyMinimizer(memoizationRoots, DIRendering.colorsEnabled)
           memoizationRoots.iterator.map(minimizer.renderKey).mkString("[ ", ", ", " ]")
         } else {
           "ø"

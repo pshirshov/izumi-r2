@@ -3,7 +3,8 @@ package izumi.distage.model
 import izumi.distage.model.definition.Axis.AxisChoice
 import izumi.distage.model.definition.{Activation, Identifier, Lifecycle, ModuleBase}
 import izumi.distage.model.effect.QuasiIO
-import izumi.distage.model.plan.{OrderedPlan, Roots}
+import izumi.distage.model.plan.{DIPlan, Roots}
+import izumi.distage.model.planning.PlanSplittingOps
 import izumi.distage.model.providers.Functoid
 import izumi.distage.model.provisioning.PlanInterpreter.FailedProvision
 import izumi.distage.model.reflection.DIKey
@@ -14,13 +15,14 @@ import izumi.fundamentals.platform.functional.Identity
 import izumi.reflect.{Tag, TagK}
 
 /**
-  * Injector creates object graphs ([[izumi.distage.model.Locator]]s) from a [[izumi.distage.model.definition.ModuleDef]] or from an [[izumi.distage.model.plan.OrderedPlan]]
+  * Injector creates object graphs ([[izumi.distage.model.Locator]]s) from a [[izumi.distage.model.definition.ModuleDef]] or from an [[izumi.distage.model.plan.DIPlan]]
   *
   * @see [[izumi.distage.model.Planner]]
   * @see [[izumi.distage.model.Producer]]
   */
 trait Injector[F[_]] extends Planner with Producer {
-
+  @deprecated("should be removed with OrderedPlan", "13/04/2021")
+  def ops: PlanSplittingOps
   /**
     * Create an an object graph described by the `input` module,
     * designate all arguments of the provided function as roots of the graph,
@@ -218,7 +220,7 @@ trait Injector[F[_]] extends Planner with Producer {
     *
     * @return A Resource value that encapsulates allocation and cleanup of the object graph described by `input`
     */
-  final def produce(plan: OrderedPlan): Lifecycle[F, Locator] = {
+  final def produce(plan: DIPlan): Lifecycle[F, Locator] = {
     produceCustomF[F](plan)
   }
 
@@ -263,7 +265,7 @@ trait Injector[F[_]] extends Planner with Producer {
     produce(bindings, roots, activation)
 
   @deprecated("Use .produce. Parameterize Injector with `F` on creation: `Injector[F]()`", "1.0")
-  final def produceF(plan: OrderedPlan): Lifecycle[F, Locator] = {
+  final def produceF(plan: DIPlan): Lifecycle[F, Locator] = {
     produceCustomF[F](plan)
   }
 

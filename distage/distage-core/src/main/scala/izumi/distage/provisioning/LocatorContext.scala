@@ -12,7 +12,17 @@ final case class LocatorContext(
 ) extends ProvisioningKeyProvider {
 
   override def fetchUnsafe(key: DIKey): Option[Any] = {
-    provision.get(key)
+    provision
+      .get(key).orElse(key match {
+        case DIKey.ProxyInitKey(proxied) =>
+          // see "keep proxies alive in case of intersecting loops" test
+          // there may be a situation when we have intersecting loops resolved independently and
+          // real implementation may be not available yet, while we process one of the loops
+          // so in case we can't access "real" instance we may try to fallback to unitialized proxy instance
+          provision.get(proxied)
+        case _ =>
+          None
+      })
   }
 
   override def fetchKey(key: DIKey, byName: Boolean): Option[Any] = {

@@ -120,7 +120,7 @@ def HelloByeModule = new ModuleDef {
 ```
 
 `ModuleDef` merely contains a description of the desired object graph, let's transform that high-level description into an
-actionable series of steps - an @scaladoc[OrderedPlan](izumi.distage.model.plan.OrderedPlan), a datatype we can
+actionable series of steps - an @scaladoc[DIPlan](izumi.distage.model.plan.DIPlan), a datatype we can
 @ref[inspect](debugging.md#pretty-printing-plans), @ref[test](debugging.md#testing-plans) or @ref[verify at compile-time](distage-framework.md#compile-time-checks) – without having to actually create objects or execute effects.
 
 ```scala mdoc:to-string
@@ -1479,54 +1479,3 @@ However, distage *won't* bring in `cats` or `zio` as dependencies if you don't a
 @ref[Cats Resource & ZIO ZManaged Bindings](basics.md#resource-bindings-lifecycle) also work out of the box without any magic imports.
 
 All relevant typeclass instances for chosen effect type, such as `ConcurrentEffect[F]`, are @ref[included by default](basics.md#out-of-the-box-typeclass-instances) (overridable by user bindings)
-
-Example:
-
-```scala mdoc:reset:invisible:to-string
-import distage.Module
-class DBConnection
-object DBConnection {
-  def create[F[_]]: F[DBConnection] = ???
-}
-def ProgramModule[F[_]]: Module = Module.empty
-def SyncInterpreters[F[_]]: Module = Module.empty
-```
-
-```scala mdoc:to-string
-import cats.syntax.semigroup._
-import cats.effect.{ExitCode, IO, IOApp}
-import distage.{DIKey, Roots, Injector}
-
-trait AppEntrypoint {
-  def run: IO[Unit]
-}
-
-object Main extends IOApp {
-  override def run(args: List[String]): IO[ExitCode] = {
-
-    // `distage.Module` has a Monoid instance
-
-    val myModules = ProgramModule[IO] |+| SyncInterpreters[IO]
-
-    val plan = Injector().plan(myModules, Roots.target[AppEntrypoint])
-
-    for {
-      // resolveImportsF can effectfully add missing instances to an existing plan
-      // (You can also create instances effectfully inside `ModuleDef` via `make[_].fromEffect` bindings)
-
-      newPlan <- plan.resolveImportsF[IO] {
-        case i if i.target == DIKey[DBConnection] =>
-           DBConnection.create[IO]
-      }
-
-      // Effects used in Resource and Effect Bindings
-      // should match the effect `F[_]` in `Injector[F]()`
-
-      _ <- Injector[IO]().produce(newPlan).use {
-        classes =>
-          classes.get[AppEntrypoint].run
-      }
-    } yield ExitCode.Success
-  }
-}
-```

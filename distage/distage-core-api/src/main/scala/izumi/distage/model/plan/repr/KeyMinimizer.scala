@@ -1,14 +1,21 @@
 package izumi.distage.model.plan.repr
 
+import izumi.distage.model.reflection.DIKey.SetKeyMeta
+
 import scala.annotation.nowarn
 import izumi.distage.model.reflection._
 import izumi.fundamentals.collections.IzCollections._
 import izumi.reflect.macrortti.LightTypeTagRef.SymName
 import izumi.reflect.macrortti.{LTTRenderables, LightTypeTagRef, RuntimeAPI}
 
+trait DIConsoleColors extends IzConsoleColors
+
 class KeyMinimizer(
-  allKeys: Set[DIKey]
-) {
+  allKeys: Set[DIKey],
+  colors: Boolean,
+) extends DIConsoleColors {
+
+  override protected def colorsEnabled(): Boolean = colors
 
   def renderKey(key: DIKey): String = {
     renderKey(key, renderType)
@@ -16,7 +23,8 @@ class KeyMinimizer(
 
   def renderType(tpe: SafeType): String = {
     import minimizedLTTRenderables.RenderableSyntax
-    tpe.tag.ref.render()(minimizedLTTRenderables.r_LightTypeTag)
+    val base = tpe.tag.ref.render()(minimizedLTTRenderables.r_LightTypeTag)
+    styled(base, c.MAGENTA)
   }
 
   @nowarn("msg=Unused import")
@@ -42,11 +50,19 @@ class KeyMinimizer(
     }
   }
 
+  private[this] def showKeyData(prefix: String, value: String, idx: Option[Int] = None) = {
+    val prefixRepr = styled(s"{$prefix.", c.GREEN)
+    val suffixRepr = styled(s"}", c.GREEN)
+    val idxrepr = idx.map(i => styled(i.toString, c.RED)).getOrElse("")
+
+    s"$prefixRepr$value$suffixRepr$idxrepr"
+  }
+
   @inline private[this] def renderKey(key: DIKey, rendertype: SafeType => String): String = {
     // in order to make idea links working we need to put a dot before Position occurence and avoid using #
     key match {
       case DIKey.TypeKey(tpe, idx) =>
-        mutatorIndex(s"{type.${rendertype(tpe)}}", idx)
+        showKeyData("type", rendertype(tpe), idx)
 
       case DIKey.IdKey(tpe, id, idx) =>
         val asString = id.toString
@@ -56,24 +72,34 @@ class KeyMinimizer(
           asString
         }
 
-        mutatorIndex(s"{id.${rendertype(tpe)}@$fullId}", idx)
+        showKeyData("id", s"${rendertype(tpe)}${styled("@" + fullId, c.UNDERLINED, c.BLUE)}", idx)
 
-      case DIKey.ProxyElementKey(proxied, _) =>
-        s"{proxy.${renderKey(proxied)}}"
+      case DIKey.ProxyInitKey(proxied) =>
+        showKeyData("proxyinit", renderKey(proxied))
+
+      case DIKey.ProxyControllerKey(proxied, _) =>
+        showKeyData("proxyref", renderKey(proxied))
 
       case DIKey.EffectKey(key, _) =>
-        s"{effect.${renderKey(key)}}"
+        showKeyData("effect", renderKey(key))
 
       case DIKey.ResourceKey(key, _) =>
-        s"{resource.${renderKey(key)}}"
+        showKeyData("resource", renderKey(key))
 
       case DIKey.SetElementKey(set, reference, disambiguator) =>
-        s"{set.${renderKey(set)}/${renderKey(reference)}#${disambiguator.fold("0")(_.hashCode.toString)}"
-    }
-  }
+        val base = s"${renderKey(set)}/${renderKey(reference)}"
+        val drepr = (disambiguator match {
+          case SetKeyMeta.NoMeta =>
+            None
+          case SetKeyMeta.WithImpl(disambiguator) =>
+            Some(s"impl:${disambiguator.hashCode}")
+          case SetKeyMeta.WithAutoset(base) =>
+            Some(s"autoset:${renderKey(base)}")
+        }).map(v => "#" + v).getOrElse("")
 
-  private[this] def mutatorIndex(base: String, idx: Option[Int]): String = {
-    idx.fold(base)(i => s"$base.$i")
+        val fullDis = styled(drepr, c.BLUE)
+        showKeyData("set", s"$base$fullDis")
+    }
   }
 
   private[this] def extract(key: DIKey): Set[String] = {
@@ -84,7 +110,10 @@ class KeyMinimizer(
       case k: DIKey.IdKey[_] =>
         extract(k.tpe)
 
-      case p: DIKey.ProxyElementKey =>
+      case p: DIKey.ProxyControllerKey =>
+        extract(p.tpe) ++ extract(p.proxied)
+
+      case p: DIKey.ProxyInitKey =>
         extract(p.tpe) ++ extract(p.proxied)
 
       case s: DIKey.SetElementKey =>
@@ -109,5 +138,5 @@ class KeyMinimizer(
 }
 
 object KeyMinimizer {
-  def apply(allKeys: Set[DIKey]): KeyMinimizer = new KeyMinimizer(allKeys)
+  def apply(allKeys: Set[DIKey], colors: Boolean): KeyMinimizer = new KeyMinimizer(allKeys, colors)
 }

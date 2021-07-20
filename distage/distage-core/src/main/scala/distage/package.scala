@@ -1,4 +1,3 @@
-import izumi.distage.model.plan.ExecutableOp
 import izumi.distage.planning.{extensions, solver}
 import izumi.distage.{constructors, model, modules, planning}
 
@@ -94,11 +93,8 @@ package object distage extends Distage {
   override type GraphDumpBootstrapModule = extensions.GraphDumpBootstrapModule
   override val GraphDumpBootstrapModule: extensions.GraphDumpBootstrapModule.type = extensions.GraphDumpBootstrapModule
 
-  override type OrderedPlan = model.plan.OrderedPlan
-  override val OrderedPlan: model.plan.OrderedPlan.type = model.plan.OrderedPlan
-  override type SemiPlan = model.plan.SemiPlan
-  override val SemiPlan: model.plan.SemiPlan.type = model.plan.SemiPlan
-  override type AbstractPlan[OpType <: ExecutableOp] = model.plan.AbstractPlan[OpType]
+  override type DIPlan = model.plan.DIPlan
+  override val DIPlan: model.plan.DIPlan.type = model.plan.DIPlan
 
   override type SafeType = model.reflection.SafeType
   override val SafeType: model.reflection.SafeType.type = model.reflection.SafeType

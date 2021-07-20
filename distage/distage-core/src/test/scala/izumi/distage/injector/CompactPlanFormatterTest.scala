@@ -33,7 +33,7 @@ class CompactPlanFormatterTest extends AnyWordSpec with MkInjector {
       make[W2.T2]
     }))
 
-    val formatted = plan.render()
+    val formatted = plan.render().replaceAll("\u001B\\[[;\\d]*m", "")
     assert(!formatted.contains(classOf[Impl1].getName))
     assert(formatted.contains("{type.BasicCases::BasicCase1::JustTrait}"))
     assert(formatted.contains("BasicCases::BasicCase1::Impl1"))

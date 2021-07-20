@@ -344,14 +344,14 @@ val thatC = objects.get[A].c
 assert(thisC == thatC)
 ```
 
-Locator contains metadata about the plan and the bindings from which it was ultimately created:
+Locator contains metadata about the plan, and the bindings from which it was ultimately created:
 
 ```scala mdoc:to-string
-import distage.{OrderedPlan, ModuleBase}
+import distage.{DIPlan, ModuleBase}
 
-// Plan that created this locator (after GC)
+// Plan that created this locator
 
-val plan: OrderedPlan = objects.plan
+val plan: DIPlan = objects.plan
 
 // Bindings from which the Plan was built (after GC)
 

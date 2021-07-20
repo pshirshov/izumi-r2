@@ -27,25 +27,31 @@ object ZIOResourcesTestJvm {
 }
 final class ZIOResourcesTestJvm extends AnyWordSpec with GivenWhenThen {
 
+  def runningInIdea() = System.getProperty("java.class.path").contains("runners.jar")
+
   "ZManaged" should {
     "ZManaged works" in {
-      val dbResource = ZManaged.make(UIO {
-        println("Connecting to DB!"); new DBConnection
-      })(_ => UIO(println("Disconnecting DB")))
-      val mqResource = ZManaged.make(IO {
-        println("Connecting to Message Queue!"); new MessageQueueConnection
-      })(_ => UIO(println("Disconnecting Message Queue")))
+      if (!runningInIdea()) {
+        val dbResource = ZManaged.make(UIO {
+          println("Connecting to DB!");
+          new DBConnection
+        })(_ => UIO(println("Disconnecting DB")))
+        val mqResource = ZManaged.make(IO {
+          println("Connecting to Message Queue!");
+          new MessageQueueConnection
+        })(_ => UIO(println("Disconnecting Message Queue")))
 
-      val module = new ModuleDef {
-        make[DBConnection].fromResource(dbResource)
-        make[MessageQueueConnection].fromResource(mqResource)
-        make[MyApp]
+        val module = new ModuleDef {
+          make[DBConnection].fromResource(dbResource)
+          make[MessageQueueConnection].fromResource(mqResource)
+          make[MyApp]
+        }
+
+        unsafeRun(Injector[Task]().produce(module, Roots.Everything).use {
+          objects =>
+            objects.get[MyApp].run
+        })
       }
-
-      unsafeRun(Injector[Task]().produce(module, Roots.Everything).use {
-        objects =>
-          objects.get[MyApp].run
-      })
     }
 
     "Lifecycle API should be compatible with provider and instance bindings of type ZManaged" in {
@@ -134,23 +140,27 @@ final class ZIOResourcesTestJvm extends AnyWordSpec with GivenWhenThen {
 
   "ZLayer" should {
     "ZLayer works" in {
-      val dbResource = ZLayer.fromAcquireRelease(UIO {
-        println("Connecting to DB!"); new DBConnection
-      })(_ => UIO(println("Disconnecting DB")))
-      val mqResource = ZLayer.fromAcquireRelease(IO {
-        println("Connecting to Message Queue!"); new MessageQueueConnection
-      })(_ => UIO(println("Disconnecting Message Queue")))
+      if (!runningInIdea()) {
+        val dbResource = ZLayer.fromAcquireRelease(UIO {
+          println("Connecting to DB!");
+          new DBConnection
+        })(_ => UIO(println("Disconnecting DB")))
+        val mqResource = ZLayer.fromAcquireRelease(IO {
+          println("Connecting to Message Queue!");
+          new MessageQueueConnection
+        })(_ => UIO(println("Disconnecting Message Queue")))
 
-      val module = new ModuleDef {
-        make[DBConnection].fromResource(dbResource)
-        make[MessageQueueConnection].fromResource(mqResource)
-        make[MyApp]
+        val module = new ModuleDef {
+          make[DBConnection].fromResource(dbResource)
+          make[MessageQueueConnection].fromResource(mqResource)
+          make[MyApp]
+        }
+
+        unsafeRun(Injector[Task]().produce(module, Roots.Everything).use {
+          objects =>
+            objects.get[MyApp].run
+        })
       }
-
-      unsafeRun(Injector[Task]().produce(module, Roots.Everything).use {
-        objects =>
-          objects.get[MyApp].run
-      })
     }
 
     "Lifecycle API should be compatible with provider and instance bindings of type ZLayer" in {
@@ -256,17 +266,19 @@ final class ZIOResourcesTestJvm extends AnyWordSpec with GivenWhenThen {
           }.use((_: Fiber[Nothing, Unit]).interrupt.unit)
       )
 
-      When("Even `ZManaged -> Resource -> Lifecycle` chain is still interruptible")
-      unsafeRun {
-        import zio.interop.catz._
-        Lifecycle
-          .fromCats[Task, Fiber[Nothing, Unit]](
-            ZManaged
-              .fromEffect(ZIO.never)
-              .onExit((_: zio.Exit[Throwable, Unit]) => ZIO.effectTotal(Then("Resource interrupted")))
-              .fork
-              .toResourceZIO
-          ).use((_: Fiber[Nothing, Unit]).interrupt.unit)
+      if (!runningInIdea()) {
+        When("Even `ZManaged -> Resource -> Lifecycle` chain is still interruptible")
+        unsafeRun {
+          import zio.interop.catz._
+          Lifecycle
+            .fromCats[Task, Fiber[Nothing, Unit]](
+              ZManaged
+                .fromEffect(ZIO.never)
+                .onExit((_: zio.Exit[Throwable, Unit]) => ZIO.effectTotal(Then("Resource interrupted")))
+                .fork
+                .toResourceZIO
+            ).use((_: Fiber[Nothing, Unit]).interrupt.unit)
+        }
       }
     }
 

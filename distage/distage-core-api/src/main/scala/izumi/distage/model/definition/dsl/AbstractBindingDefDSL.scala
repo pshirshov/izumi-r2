@@ -10,6 +10,7 @@ import izumi.distage.model.definition.dsl.AbstractBindingDefDSL.{SingletonRef, _
 import izumi.distage.model.exceptions.InvalidFunctoidModifier
 import izumi.distage.model.providers.Functoid
 import izumi.distage.model.reflection.DIKey
+import izumi.distage.model.reflection.DIKey.SetKeyMeta
 import izumi.fundamentals.platform.language.{CodePositionMaterializer, SourceFilePosition}
 import izumi.reflect.Tag
 
@@ -335,7 +336,7 @@ object AbstractBindingDefDSL {
   final class SetElementRef(implDef: ImplDef, pos: SourceFilePosition, ops: mutable.Queue[SetElementInstruction] = mutable.Queue.empty) {
     def interpret(setKey: DIKey.BasicKey): SetElementBinding = {
       val implKey = DIKey.TypeKey(implDef.implType)
-      val elKey = DIKey.SetElementKey(setKey, implKey, Some(implDef))
+      val elKey = DIKey.SetElementKey(setKey, implKey, SetKeyMeta.WithImpl(implDef))
 
       ops.foldLeft(SetElementBinding(elKey, implDef, Set.empty, pos)) {
         (b, instr) =>
@@ -358,7 +359,7 @@ object AbstractBindingDefDSL {
       val valueProxyKey = DIKey.IdKey(implDef.implType, DIKey.MultiSetImplId(setKey, implDef))
       val valueProxyBinding = SingletonBinding(valueProxyKey, implDef, Set.empty, pos)
 
-      val elementKey = DIKey.SetElementKey(setKey, valueProxyKey, Some(implDef))
+      val elementKey = DIKey.SetElementKey(setKey, valueProxyKey, SetKeyMeta.WithImpl(implDef))
       val refBind0 = SetElementBinding(elementKey, ImplDef.ReferenceImpl(valueProxyBinding.key.tpe, valueProxyBinding.key, weak = false), Set.empty, pos)
 
       val refBind = ops.foldLeft(refBind0) {

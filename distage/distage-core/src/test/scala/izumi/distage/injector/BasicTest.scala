@@ -43,11 +43,11 @@ class BasicTest extends AnyWordSpec with MkInjector {
 
     assert(exc.getMessage.linesIterator.toList.head == "Provisioner failed on 1 of 4 required operations, just 1 succeeded:")
 
-    val fixedPlan = plan.resolveImports {
-      case i if i.target == DIKey.get[NotInContext] => new NotInContext {}
-    }
-    val locator = injector.produce(fixedPlan).unsafeGet()
-    assert(locator.get[LocatorDependent].ref.get == locator)
+//    val fixedPlan = plan.resolveImports {
+//      case i if i.target == DIKey.get[NotInContext] => new NotInContext {}
+//    }
+//    val locator = injector.produce(fixedPlan).unsafeGet()
+//    assert(locator.get[LocatorDependent].ref.get == locator)
   }
 
   "correctly handle empty typed sets" in {
@@ -416,6 +416,7 @@ class BasicTest extends AnyWordSpec with MkInjector {
       }
     })
 
+    println(mkInjector().plan(definition).render())
     val context = mkInjector().produce(definition).unsafeGet()
 
     assert(context.get[Mutable] == Mutable(1, Some(SomethingUseful("x"))))

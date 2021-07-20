@@ -9,9 +9,9 @@ import izumi.fundamentals.platform.strings.IzString._
   * @param shared  creates a part of the graph shared by both `side` and `primary` plans
   */
 final case class TriSplittedPlan(
-  side: OrderedPlan,
-  primary: OrderedPlan,
-  shared: OrderedPlan,
+  side: DIPlan,
+  primary: DIPlan,
+  shared: DIPlan,
   sideRoots1: Set[DIKey],
   sideRoots2: Set[DIKey],
 ) {
